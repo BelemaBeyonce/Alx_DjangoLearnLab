@@ -5,7 +5,9 @@ from django.utils.translation import gettext_lazy as _
 from django.db import models
 from django.core.exceptions import ValidationError
 from django import forms
-from .models import Profile, Post
+from .models import Profile, Post, Comment
+from taggit.forms import TagField, TagWidget # Import TagField for django-taggit
+# from taggit_autosuggest.widgets import TagAutoSuggest
 
 class CustomUserCreationForm(UserCreationForm):
     email = EmailField(label=_("Email address"), required=True, help_text=_("Required."))
@@ -55,16 +57,22 @@ class ProfileForm(forms.ModelForm):
         fields = ("bio", "profile_picture")
 
 class PostForm(forms.ModelForm):
+    tags = TagField(required=False, help_text=_('Enter tags separated by commas (e.g., Django, Python).'), 
+                    widget=TagWidget()
+                    )
+    # TagField for comma-seperated tag input
     class Meta:
         model = Post
         fields = ("title", "content") # fields available for aditing in the form, other fields in the model are auto generated
         widgets = {
             'title': forms.TextInput(attrs={'class': 'form-control'}), # Add CSS class for styling
             'content': forms.Textarea(attrs={'class': 'form-control', 'rows':6}) # Textarea for content
+            # tags uses TagField, no widget needed
         }
         labels = {
             'title':_('Title'),
             'content':_('Content'),
+            'tags': _('Tags'),
         }
         help_texts = {
             'title': _('Enter a catchy title for your post.'),
@@ -77,3 +85,27 @@ class PostForm(forms.ModelForm):
             raise forms.ValidationError(_('Title cannot be empty'))
         return title
     
+    def clean_tags(self):
+        tags = self.cleaned_data.get('tags')
+        for tag in tags:
+            if len(tag) < 2:
+                raise forms.ValidationError(_("Each tag must have at least 2 characters long."))
+            return tags
+            # Validate each tag in the list
+    
+    
+class CommentForm(forms.ModelForm):
+    class Meta:
+        model = Comment
+        fields = ['content']
+        widgets = {
+            'content': forms.Textarea(attrs={'class': 'form-control', 'rows': 4, 'placeholder': 'Write your comment here...'}),
+        }
+        labels = {'content': _('Comment')}
+        help_texts = {'content': _('Share your thoughts on this post.')}
+
+    def clean_content(self):
+        content = self.cleaned_data.get('content')
+        if len(content.strip()) < 5:
+            raise forms.ValidationError(_("comment must be at least 5 characters long"))
+        return content
